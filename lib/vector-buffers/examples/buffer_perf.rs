@@ -148,7 +148,7 @@ impl Configuration {
                     .help("Sets the buffer type to use")
                     .short('t')
                     .long("buffer-type")
-                    .possible_values(&["disk-v1", "disk-v2", "in-memory"])
+                    .possible_values(&["disk-v2", "in-memory"])
                     .default_value("disk-v2"),
             )
             .arg(
@@ -265,16 +265,6 @@ where
                 when_full,
             }
         }
-        "disk-v1" => {
-            info!(
-                "[buffer-perf] creating disk v1 buffer with max_size={}, in blocking mode",
-                max_size_bytes
-            );
-            BufferType::DiskV1 {
-                max_size: max_size_bytes,
-                when_full,
-            }
-        }
         "disk-v2" => {
             info!(
                 "[buffer-perf] creating disk v2 buffer with max_size={}, in blocking mode",
@@ -286,7 +276,7 @@ where
             }
         }
         s => panic!(
-            "unknown buffer type '{}' requested; valid types are in-memory, disk-v1, and disk-v2",
+            "unknown buffer type '{}' requested; valid types are in-memory and disk-v2",
             s
         ),
     };
