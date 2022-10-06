@@ -69,6 +69,7 @@ services:
       - nats-tls-client-cert
       - nats-jwt
     environment:
+      - TEST_LOG=${TEST_LOG}
       - NATS_ADDRESS=nats://nats:4222
       - NATS_USERPASS_ADDRESS=nats://nats-userpass:4222
       - NATS_TOKEN_ADDRESS=nats://nats-token:4222

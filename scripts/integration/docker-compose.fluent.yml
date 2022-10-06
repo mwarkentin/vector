@@ -19,6 +19,8 @@ services:
       - "fluent-integration-tests"
       - "--lib"
       - "::fluent::"
+    environment:
+      - TEST_LOG=${TEST_LOG}
     volumes:
       - ${PWD}:/code
       - target:/code/target

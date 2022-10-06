@@ -24,6 +24,7 @@ services:
       - "--lib"
       - "::gcp::"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - EMULATOR_ADDRESS=http://gcloud-pubsub:8681
     depends_on:
       - gcloud-pubsub

@@ -30,6 +30,7 @@ services:
     depends_on:
       - dnstap
     environment:
+      - TEST_LOG=${TEST_LOG}
       - BIND_SOCKET=/run/bind/socket
       - RUST_BACKTRACE=1
     volumes:

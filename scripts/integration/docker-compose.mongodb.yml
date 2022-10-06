@@ -58,6 +58,7 @@ services:
       - mongodb-secondary
       - mongodb-arbiter
     environment:
+      - TEST_LOG=${TEST_LOG}
       - PRIMARY_MONGODB_ADDRESS=mongodb://root:toor@mongodb-primary
       - SECONDARY_MONGODB_ADDRESS=mongodb://root:toor@mongodb-secondary
     networks:

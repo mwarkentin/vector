@@ -27,6 +27,7 @@ services:
       - "--lib"
       - "::apex::"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - MOCK_APEX_ADDRESS=http://mock-apex:4567
     depends_on:
       - mock-apex

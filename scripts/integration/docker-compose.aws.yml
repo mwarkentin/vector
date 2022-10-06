@@ -45,6 +45,7 @@ services:
       - mock-watchlogs
       - mock-ecs
     environment:
+      - TEST_LOG=${TEST_LOG}
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
       - CLOUDWATCH_ADDRESS=http://mock-localstack:4566

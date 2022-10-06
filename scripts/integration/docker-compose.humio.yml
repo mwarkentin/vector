@@ -23,6 +23,7 @@ services:
       - "--lib"
       - "sinks::humio::"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - HUMIO_ADDRESS=http://localhost:8080
     depends_on:
       - humio

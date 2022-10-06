@@ -45,6 +45,7 @@ services:
       - "--lib"
       - "sinks::axiom::"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - AXIOM_URL=http://axiom-core
     depends_on:
       - axiom-core

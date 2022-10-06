@@ -26,6 +26,8 @@ services:
       - "eventstoredb_metrics-integration-tests"
       - "--lib"
       - "::eventstoredb_metrics::"
+    environment:
+      - TEST_LOG=${TEST_LOG}
     depends_on:
       - eventstoredb
     volumes:

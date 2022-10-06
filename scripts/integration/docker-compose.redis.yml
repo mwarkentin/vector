@@ -25,6 +25,7 @@ services:
     depends_on:
       - redis
     environment:
+      - TEST_LOG=${TEST_LOG}
       - REDIS_URL=redis://redis:6379/0
     networks:
       - backend

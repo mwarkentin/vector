@@ -33,6 +33,7 @@ services:
     depends_on:
       - splunk-hec
     environment:
+      - TEST_LOG=${TEST_LOG}
       - SPLUNK_HEC_ADDRESS=http://splunk-hec:8088
       - SPLUNK_API_ADDRESS=https://splunk-hec:8089
     volumes:

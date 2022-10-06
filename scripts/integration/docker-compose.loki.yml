@@ -24,6 +24,7 @@ services:
     depends_on:
       - loki
     environment:
+      - TEST_LOG=${TEST_LOG}
       - LOKI_ADDRESS=http://loki:3100
     volumes:
       - ${PWD}:/code

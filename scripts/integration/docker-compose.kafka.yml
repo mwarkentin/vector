@@ -53,6 +53,7 @@ services:
     depends_on:
       - kafka
     environment:
+      - TEST_LOG=${TEST_LOG}
       - KAFKA_HOST=kafka
     volumes:
       - ${PWD}:/code

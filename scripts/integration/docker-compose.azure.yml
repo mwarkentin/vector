@@ -24,6 +24,7 @@ services:
       - "--lib"
       - "::azure_"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - AZURE_ADDRESS=local-azure-blob
       - HEARTBEAT_ADDRESS=0.0.0.0:8080
       - LOGSTASH_ADDRESS=0.0.0.0:8081

@@ -63,6 +63,7 @@ services:
       - dufs-auth
       - dufs-https
     environment:
+      - TEST_LOG=${TEST_LOG}
       - DUFS_ADDRESS=http://dufs:5000
       - DUFS_AUTH_ADDRESS=http://dufs-auth:5000
       - DUFS_HTTPS_ADDRESS=https://dufs-https:5000

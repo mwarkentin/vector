@@ -19,6 +19,7 @@ services:
       - "--lib"
       - "::datadog::logs::"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - TEST_DATADOG_API_KEY=${TEST_DATADOG_API_KEY:?TEST_DATADOG_API_KEY required}
     volumes:
       - ${PWD}:/code

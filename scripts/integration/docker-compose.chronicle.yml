@@ -28,6 +28,7 @@ services:
     depends_on:
       - chronicle-emulator
     environment:
+      - TEST_LOG=${TEST_LOG}
       - CHRONICLE_ADDRESS=http://chronicle-emulator:3000
     volumes:
       - ${PWD}:/code

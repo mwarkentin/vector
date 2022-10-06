@@ -28,6 +28,7 @@ services:
       - "--lib"
       - "sources::opentelemetry::integration_tests::"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - OTEL_HEALTH_URL=http://opentelemetry-collector:13133
       - OTEL_OTLPHTTP_URL=http://opentelemetry-collector:9876
     depends_on:

@@ -18,6 +18,8 @@ services:
       - "docker-logs-integration-tests"
       - "--lib"
       - "${FILTER:-::docker_logs::}"
+    environment:
+      - TEST_LOG=${TEST_LOG}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${PWD}:/code

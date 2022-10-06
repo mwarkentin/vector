@@ -41,6 +41,7 @@ services:
       - nginx
       - squid
     environment:
+      - TEST_LOG=${TEST_LOG}
       - NGINX_ADDRESS=http://nginx:8000
       - NGINX_PROXY_ADDRESS=http://nginx-proxy:8000
       - SQUID_ADDRESS=http://squid:3128

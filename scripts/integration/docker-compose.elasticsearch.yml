@@ -53,6 +53,7 @@ services:
       - elasticsearch
       - elasticsearch-secure
     environment:
+      - TEST_LOG=${TEST_LOG}
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
       - ELASTICSEARCH_AWS_ADDRESS=http://localstack:4571

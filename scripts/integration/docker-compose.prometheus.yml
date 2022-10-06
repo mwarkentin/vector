@@ -42,6 +42,8 @@ services:
       - "prometheus-integration-tests"
       - "--lib"
       - "${FILTER:-::prometheus::}"
+    environment:
+      - TEST_LOG=${TEST_LOG}
     depends_on:
       - influxdb
       - influxdb-tls

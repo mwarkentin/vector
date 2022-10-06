@@ -24,6 +24,8 @@ services:
       - "${FILTER:-::amqp::}"
     depends_on:
       - rabbitmq
+    environment:
+      - TEST_LOG=${TEST_LOG}
     volumes:
       - ${PWD}:/code
       - target:/code/target

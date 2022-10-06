@@ -41,6 +41,7 @@ services:
       - influxdb-v1-tls
       - influxdb-v2
     environment:
+      - TEST_LOG=${TEST_LOG}
       - INFLUXDB_V1_HTTP_ADDRESS=http://influxdb-v1:8086
       - INFLUXDB_V1_HTTPS_ADDRESS=https://influxdb-v1-tls:8086
       - INFLUXDB_V2_ADDRESS=http://influxdb-v2:8086

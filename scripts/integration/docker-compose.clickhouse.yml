@@ -22,6 +22,7 @@ services:
       - "--lib"
       - "::clickhouse::"
     environment:
+      - TEST_LOG=${TEST_LOG}
       - CLICKHOUSE_ADDRESS=http://clickhouse:8123
     depends_on:
       - clickhouse

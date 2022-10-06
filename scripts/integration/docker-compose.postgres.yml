@@ -31,6 +31,7 @@ services:
     depends_on:
       - postgres
     environment:
+      - TEST_LOG=${TEST_LOG}
       - PG_SOCKET=/socket
       - PG_HOST=postgres
     volumes:

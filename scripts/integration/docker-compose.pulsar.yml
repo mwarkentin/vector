@@ -26,6 +26,7 @@ services:
     depends_on:
       - pulsar
     environment:
+      - TEST_LOG=${TEST_LOG}
       - PULSAR_ADDRESS=pulsar://pulsar:6650
     volumes:
       - ${PWD}:/code
