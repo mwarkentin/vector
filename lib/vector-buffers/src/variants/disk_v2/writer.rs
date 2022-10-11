@@ -1266,7 +1266,7 @@ where
             self.ledger.notify_writer_waiters();
         }
 
-        trace!(
+        debug!(
             record_id,
             record_events,
             bytes_written,

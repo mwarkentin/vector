@@ -883,7 +883,19 @@ where
                             .await
                             .context(IoSnafu)?;
                         self.reset();
+
+                        debug!(
+                            current_reader_data_file_id = self.ledger.get_current_reader_file_id(),
+                            last_record_id_in_data_file,
+                            "Current reader data file has already been read, forcefully deleting before proceeding...",
+                        );
                     } else {
+                        debug!(
+                            current_reader_data_file_id = self.ledger.get_current_reader_file_id(),
+                            last_record_id_in_data_file,
+                            "Reached data file that reader left off on. Switching to individual record seek.",
+                        );
+
                         // We've hit a point where the current data file we're on has records newer
                         // than where we left off, so we can catch up from here.
                         break;
@@ -902,6 +914,8 @@ where
         // we're past the last record we had acknowledged.
         while self.last_reader_record_id < ledger_last {
             if self.next().await?.is_none() && self.last_reader_record_id == 0 {
+                debug!("Buffer was already empty. Caught up.");
+
                 // We've hit a point where there's no more data to read.  If our "last reader record
                 // ID" hasn't moved at all, that means the buffer was already empty and we're caught
                 // up, so we just pin ourselves to where the ledger says we left off, and we're good
@@ -1089,14 +1103,18 @@ where
         self.finalizer.add(record_events.get(), receiver);
 
         if self.ready_to_read {
-            trace!(
-                record_id,
-                record_events,
-                record_bytes,
-                data_file_id = self.ledger.get_current_reader_file_id(),
-                "Read record."
-            );
+            let (batch, receiver) = BatchNotifier::new_with_receiver();
+            record.add_batch_notifier(batch);
+            self.finalizer.add(record_events.get(), receiver);
         }
+
+        debug!(
+            record_id,
+            record_events,
+            record_bytes,
+            data_file_id = self.ledger.get_current_reader_file_id(),
+            "Read record."
+        );
 
         Ok(Some(record))
     }

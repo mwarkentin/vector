@@ -1,3 +1,5 @@
+use std::iter::repeat;
+
 use tokio::{fs::OpenOptions, io::AsyncWriteExt};
 use tokio_test::{assert_pending, assert_ready, task::spawn};
 use tracing::Instrument;
@@ -119,6 +121,226 @@ async fn last_record_is_valid_during_load_when_buffer_correctly_flushed_and_stop
 
     let parent =
         trace_span!("last_record_is_valid_during_load_when_buffer_correctly_flushed_and_stopped");
+    fut.instrument(parent.or_current()).await;
+}
+
+#[tokio::test]
+async fn reader_reaches_last_read_record_during_load_when_lagging_behind_writer() {
+    // TODO: Technically, this test passes right now, but it doesn't meet my sniff test.
+    //
+    // To wit, we do four writes, then two reads... then we reload the buffer, and do two more
+    // reads. We're theoretically getting back all four records we wrote, which we do... but the
+    // thing we started out trying to craft was a situation where we do the two reads, acknowledge
+    // them both, but then close the buffer. This should leave the second data file (one record per
+    // data file) around because we only drive acknowledgements when calling `Reader::next`.
+    //
+    // Instead, what happens is that our reader seek logic starts on the second data file, does a
+    // single read, realizes its now past where the ledger reports the reader left off, and calls
+    // itself synchronized. The ledger, in this scenario, reports the reader's last record read as
+    // the first record.
+    //
+    // This doesn't pass the sniff test because we never actually finalized the acknowledgement of
+    // that second read, so it's just a lucky arrangement of facts that when we do the seek read,
+    // and end up reading (and thus effectively skipping) the second record, we had already read it
+    // and acknowledged it previously.
+    //
+    // In this case, we would expect that because we never drove finalization of the acknowledgement
+    // -- deleting the data file, updating the ledger to set the new "last record read" value, etc
+    // -- that the first read we do after reloading would actually be the second record.
+    //
+    // We'll likely want to do something like holding on to the last record we read during
+    // synchronization such that when we break the loop, and detect that the record is actually past
+    // where we left off, we can keep it around until the next call to `Reader::next` and return it
+    // instead.
+    
+    // Basically, we want to make sure that when we're loading an existing buffer, and the reader is
+    // still reading a file that isn't the currently-being-written-to data file, it can correctly
+    // find the spot it left off on, and correctly initializes itself.
+    let _ = install_tracing_helpers();
+
+    let fut = with_temp_dir(|dir| {
+        let data_dir = dir.to_path_buf();
+        let max_data_file_size = 128;
+        let total_writes = 4;
+        let write_record_count: u32 = 64;
+        let record_sizes = repeat(write_record_count)
+            .take(total_writes)
+            .enumerate()
+            .map(|(i, count)| i as u32 + count)
+            .collect::<Vec<_>>();
+
+        let total_record_count: u32 = record_sizes.iter().sum();
+
+        async move {
+            // Create a buffer with a low data file maximum size limit so we can force the writer to
+            // create a few data files before we reload the buffer.
+            let (mut writer, mut reader, ledger) = create_buffer_v2_with_max_data_file_size(data_dir.clone(), max_data_file_size).await;
+
+            let mut records_from_write = 0;
+            for record_size in &record_sizes {
+                let bytes_written = writer
+                    .write_record(MultiEventRecord::new(*record_size))
+                    .await
+                    .expect("write should not fail");
+                assert_enough_bytes_written!(bytes_written, MultiEventRecord, *record_size);
+
+                records_from_write += *record_size;
+            }
+
+            assert_eq!(records_from_write, total_record_count);
+
+            writer.flush().await.expect("flush should not fail");
+            ledger.flush().expect("flush should not fail");
+
+            assert_eq!(ledger.get_total_records(), u64::from(total_record_count));
+
+            // Read two records and acknowledge them both. We won't delete the second data file
+            // before we close the buffer, as calls to `next` drive that logic. This means the
+            // record count, from the perspective of the buffer, will be that of only the first data
+            // file being deleted.
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[0])), record);
+            acknowledge(record.unwrap()).await;
+
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[1])), record);
+            acknowledge(record.unwrap()).await;
+
+            // Adjust our "after read" record count to compensate for the fact the records present
+            // in the last read are still part of the total record count.
+            assert_eq!(ledger.get_total_records(), u64::from(total_record_count - record_sizes[0]));
+
+            ledger.flush().expect("flush should not fail");
+
+            drop(writer);
+            drop(reader);
+            drop(ledger);
+
+            // Make sure that when we open the buffer, we're still only tracking that our total
+            // record count dropped by the number of events in the first record, but our next two
+            // reads should be the third and fourth writes, respectively.
+            //
+            // This is because we simulated a clean-ish shutdown where the `Reader` at least got to
+            // run its drop glue, which updates the ledger. Since the ledger is mmap-backed, this
+            // gives it a chance to be written out unless the system crashes/the storage goes
+            // bonkers, etc.
+            let (_, mut reader, ledger) = create_buffer_v2_with_max_data_file_size(data_dir.clone(), max_data_file_size).await;
+            assert_eq!(ledger.get_total_records(), u64::from(total_record_count - record_sizes[0]));
+
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[2])), record);
+            acknowledge(record.unwrap()).await;
+
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[3])), record);
+            acknowledge(record.unwrap()).await;
+        }
+    });
+
+    let parent =
+        trace_span!("reader_reaches_last_read_record_during_load_when_lagging_behind_writer");
+    fut.instrument(parent.or_current()).await;
+}
+
+#[tokio::test]
+async fn reader_reaches_last_read_record_during_load_when_lagging_behind_writer_two() {
+    // Basically, we want to make sure that when we're loading an existing buffer, and the reader is
+    // still reading a file that isn't the currently-being-written-to data file, it can correctly
+    // find the spot it left off on, and correctly initializes itself.
+
+    // Invariants that must be true in order to hit a loop of "Current data file has no more data."
+    // messages at start-up, which is what the user reported:
+    //
+    // - must be seeking on load (message is in else branch of `if self.ready_to_read`) 
+    // - reader/writer file IDs must be different (otherwise we'd return `Ok(None)`, which triggers a
+    // `break` in the seek read loop logic)
+    // - `try_next_record` must have returned `Ok(None)`, signalling that the current data file for
+    //   the reader is empty (implying the data file started with less than 8 bytes [8 bytes for
+    //   length delimiter] or had less than 8 bytes available to read after previous reads)
+
+    let _ = install_tracing_helpers();
+
+    let fut = with_temp_dir(|dir| {
+        let data_dir = dir.to_path_buf();
+        let max_data_file_size = 128;
+        let total_writes = 4;
+        let write_record_count: u32 = 64;
+        let record_sizes = repeat(write_record_count)
+            .take(total_writes)
+            .enumerate()
+            .map(|(i, count)| i as u32 + count)
+            .collect::<Vec<_>>();
+
+        let total_record_count: u32 = record_sizes.iter().sum();
+
+        async move {
+            // Create a buffer with a low data file maximum size limit so we can force the writer to
+            // create a few data files before we reload the buffer.
+            let (mut writer, mut reader, ledger) = create_buffer_v2_with_max_data_file_size(data_dir.clone(), max_data_file_size).await;
+
+            let mut records_from_write = 0;
+            for record_size in &record_sizes {
+                let bytes_written = writer
+                    .write_record(MultiEventRecord::new(*record_size))
+                    .await
+                    .expect("write should not fail");
+                assert_enough_bytes_written!(bytes_written, MultiEventRecord, *record_size);
+
+                records_from_write += *record_size;
+            }
+
+            assert_eq!(records_from_write, total_record_count);
+
+            writer.flush().await.expect("flush should not fail");
+            ledger.flush().expect("flush should not fail");
+
+            assert_eq!(ledger.get_total_records(), u64::from(total_record_count));
+
+            // Read two records and acknowledge them both. We won't delete the second data file
+            // before we close the buffer, as calls to `next` drive that logic. This means the
+            // record count, from the perspective of the buffer, will be that of only the first data
+            // file being deleted.
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[0])), record);
+            acknowledge(record.unwrap()).await;
+
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[1])), record);
+            acknowledge(record.unwrap()).await;
+
+            // Adjust our "after read" record count to compensate for the fact the records present
+            // in the last read are still part of the total record count.
+            assert_eq!(ledger.get_total_records(), u64::from(total_record_count - record_sizes[0]));
+
+            ledger.flush().expect("flush should not fail");
+
+            drop(writer);
+            drop(reader);
+            drop(ledger);
+
+            // Make sure that when we open the buffer, we're still only tracking that our total
+            // record count dropped by the number of events in the first record, but our next two
+            // reads should be the third and fourth writes, respectively.
+            //
+            // This is because we simulated a clean-ish shutdown where the `Reader` at least got to
+            // run its drop glue, which updates the ledger. Since the ledger is mmap-backed, this
+            // gives it a chance to be written out unless the system crashes/the storage goes
+            // bonkers, etc.
+            let (_, mut reader, ledger) = create_buffer_v2_with_max_data_file_size(data_dir.clone(), max_data_file_size).await;
+            assert_eq!(ledger.get_total_records(), u64::from(total_record_count - record_sizes[0]));
+
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[2])), record);
+            acknowledge(record.unwrap()).await;
+
+            let record = read_next(&mut reader).await;
+            assert_eq!(Some(MultiEventRecord::new(record_sizes[3])), record);
+            acknowledge(record.unwrap()).await;
+        }
+    });
+
+    let parent =
+        trace_span!("reader_reaches_last_read_record_during_load_when_lagging_behind_writer");
     fut.instrument(parent.or_current()).await;
 }
 
