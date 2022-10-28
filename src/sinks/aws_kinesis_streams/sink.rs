@@ -70,8 +70,11 @@ where
             })
             .batched_partitioned(KinesisPartitioner, self.batch_settings)
             .map(|(key, events)| {
-                let metadata =
-                    RequestMetadata::from_batch(events.iter().map(|req| req.get_metadata()));
+                let mut metadata_vec = vec![];
+                for req in &events {
+                    metadata_vec.push(req.get_metadata().clone());
+                }
+                let metadata = RequestMetadata::from_batch(&metadata_vec);
                 BatchKinesisRequest {
                     key,
                     events,
